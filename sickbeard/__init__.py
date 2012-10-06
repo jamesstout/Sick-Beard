@@ -442,39 +442,119 @@ def initialize(consoleLogging=True):
         CREATE_MISSING_SHOW_DIRS = check_setting_int(CFG, 'General', 'create_missing_show_dirs', 0)
         ADD_SHOWS_WO_DIR = check_setting_int(CFG, 'General', 'add_shows_wo_dir', 0)
 
-        EZRSS = bool(check_setting_int(CFG, 'General', 'use_torrent', 0))
-        if not EZRSS:
-            EZRSS = bool(check_setting_int(CFG, 'EZRSS', 'ezrss', 0))
+	EZRSS = bool(check_setting_int(CFG, 'General', 'use_torrent', 0))
+	if not EZRSS:
+	    CheckSection(CFG, 'EZRSS')
+	    EZRSS = bool(check_setting_int(CFG, 'EZRSS', 'ezrss', 0))
+
+	GIT_PATH = check_setting_str(CFG, 'General', 'git_path', '')
+	IGNORE_WORDS = check_setting_str(CFG, 'General', 'ignore_words', IGNORE_WORDS)
+	EXTRA_SCRIPTS = [x for x in check_setting_str(CFG, 'General', 'extra_scripts', '').split('|') if x]
+
+	USE_BANNER = bool(check_setting_int(CFG, 'General', 'use_banner', 0))
+	USE_LISTVIEW = bool(check_setting_int(CFG, 'General', 'use_listview', 0))
+	METADATA_TYPE = check_setting_str(CFG, 'General', 'metadata_type', '')
+
+	metadata_provider_dict = metadata.get_metadata_generator_dict()
+
+	# if this exists it's legacy, use the info to upgrade metadata to the new settings
+	if METADATA_TYPE:
+
+	    old_metadata_class = None
+
+	    if METADATA_TYPE == 'xbmc':
+		old_metadata_class = metadata.xbmc.metadata_class
+	    elif METADATA_TYPE == 'mediabrowser':
+		old_metadata_class = metadata.mediabrowser.metadata_class
+	    elif METADATA_TYPE == 'ps3':
+		old_metadata_class = metadata.ps3.metadata_class
+
+	    if old_metadata_class:
+
+		METADATA_SHOW = bool(check_setting_int(CFG, 'General', 'metadata_show', 1))
+		METADATA_EPISODE = bool(check_setting_int(CFG, 'General', 'metadata_episode', 1))
+
+		ART_POSTER = bool(check_setting_int(CFG, 'General', 'art_poster', 1))
+		ART_FANART = bool(check_setting_int(CFG, 'General', 'art_fanart', 1))
+		ART_THUMBNAILS = bool(check_setting_int(CFG, 'General', 'art_thumbnails', 1))
+		ART_SEASON_THUMBNAILS = bool(check_setting_int(CFG, 'General', 'art_season_thumbnails', 1))
+
+		new_metadata_class = old_metadata_class(METADATA_SHOW,
+							METADATA_EPISODE,
+							ART_POSTER,
+							ART_FANART,
+							ART_THUMBNAILS,
+							ART_SEASON_THUMBNAILS)
+
+		metadata_provider_dict[new_metadata_class.name] = new_metadata_class
+
+	# this is the normal codepath for metadata config
+	else:
+	    METADATA_XBMC = check_setting_str(CFG, 'General', 'metadata_xbmc', '0|0|0|0|0|0')
+	    METADATA_MEDIABROWSER = check_setting_str(CFG, 'General', 'metadata_mediabrowser', '0|0|0|0|0|0')
+	    METADATA_PS3 = check_setting_str(CFG, 'General', 'metadata_ps3', '0|0|0|0|0|0')
+	    METADATA_WDTV = check_setting_str(CFG, 'General', 'metadata_wdtv', '0|0|0|0|0|0')
+	    METADATA_TIVO = check_setting_str(CFG, 'General', 'metadata_tivo', '0|0|0|0|0|0')
+	    METADATA_SYNOLOGY = check_setting_str(CFG, 'General', 'metadata_synology', '0|0|0|0|0|0')
+
+	    for cur_metadata_tuple in [(METADATA_XBMC, metadata.xbmc),
+				       (METADATA_MEDIABROWSER, metadata.mediabrowser),
+				       (METADATA_PS3, metadata.ps3),
+				       (METADATA_WDTV, metadata.wdtv),
+				       (METADATA_TIVO, metadata.tivo),
+				       (METADATA_SYNOLOGY, metadata.synology),
+				       ]:
+
+		(cur_metadata_config, cur_metadata_class) = cur_metadata_tuple
+		tmp_provider = cur_metadata_class.metadata_class()
+		tmp_provider.set_config(cur_metadata_config)
+		metadata_provider_dict[tmp_provider.name] = tmp_provider
+
+	CheckSection(CFG, 'GUI')
+	COMING_EPS_LAYOUT = check_setting_str(CFG, 'GUI', 'coming_eps_layout', 'banner')
+	COMING_EPS_DISPLAY_PAUSED = bool(check_setting_int(CFG, 'GUI', 'coming_eps_display_paused', 0))
+	COMING_EPS_SORT = check_setting_str(CFG, 'GUI', 'coming_eps_sort', 'date')
+
+	CheckSection(CFG, 'Newznab')
+	newznabData = check_setting_str(CFG, 'Newznab', 'newznab_data', '')
+	newznabProviderList = providers.getNewznabProviderList(newznabData)
+	providerList = providers.makeProviderList()
 
 	CheckSection(CFG, 'Blackhole')
 	NZB_DIR = check_setting_str(CFG, 'Blackhole', 'nzb_dir', '')
 	TORRENT_DIR = check_setting_str(CFG, 'Blackhole', 'torrent_dir', '')
 
+	CheckSection(CFG, 'TVTORRENTS')
 	TVTORRENTS = bool(check_setting_int(CFG, 'TVTORRENTS', 'tvtorrents', 0))
-        TVTORRENTS_DIGEST = check_setting_str(CFG, 'TVTORRENTS', 'tvtorrents_digest', '')
-        TVTORRENTS_HASH = check_setting_str(CFG, 'TVTORRENTS', 'tvtorrents_hash', '')
+	TVTORRENTS_DIGEST = check_setting_str(CFG, 'TVTORRENTS', 'tvtorrents_digest', '')
+	TVTORRENTS_HASH = check_setting_str(CFG, 'TVTORRENTS', 'tvtorrents_hash', '')
 
+	CheckSection(CFG, 'BTN')
 	BTN = bool(check_setting_int(CFG, 'BTN', 'btn', 0))
-        BTN_API_KEY = check_setting_str(CFG, 'BTN', 'btn_api_key', '')
+	BTN_API_KEY = check_setting_str(CFG, 'BTN', 'btn_api_key', '')
 
-        NZBS = bool(check_setting_int(CFG, 'NZBs', 'nzbs', 0))
-        NZBS_UID = check_setting_str(CFG, 'NZBs', 'nzbs_uid', '')
-        NZBS_HASH = check_setting_str(CFG, 'NZBs', 'nzbs_hash', '')
+	CheckSection(CFG, 'NZBs')
+	NZBS = bool(check_setting_int(CFG, 'NZBs', 'nzbs', 0))
+	NZBS_UID = check_setting_str(CFG, 'NZBs', 'nzbs_uid', '')
+	NZBS_HASH = check_setting_str(CFG, 'NZBs', 'nzbs_hash', '')
 
-        NZBSRUS = bool(check_setting_int(CFG, 'NZBsRUS', 'nzbsrus', 0))
-        NZBSRUS_UID = check_setting_str(CFG, 'NZBsRUS', 'nzbsrus_uid', '')
-        NZBSRUS_HASH = check_setting_str(CFG, 'NZBsRUS', 'nzbsrus_hash', '')
+	CheckSection(CFG, 'NZBsRUS')
+	NZBSRUS = bool(check_setting_int(CFG, 'NZBsRUS', 'nzbsrus', 0))
+	NZBSRUS_UID = check_setting_str(CFG, 'NZBsRUS', 'nzbsrus_uid', '')
+	NZBSRUS_HASH = check_setting_str(CFG, 'NZBsRUS', 'nzbsrus_hash', '')
 
-        NZBMATRIX = bool(check_setting_int(CFG, 'NZBMatrix', 'nzbmatrix', 0))
-        NZBMATRIX_USERNAME = check_setting_str(CFG, 'NZBMatrix', 'nzbmatrix_username', '')
-        NZBMATRIX_APIKEY = check_setting_str(CFG, 'NZBMatrix', 'nzbmatrix_apikey', '')
+	CheckSection(CFG, 'NZBMatrix')
+	NZBMATRIX = bool(check_setting_int(CFG, 'NZBMatrix', 'nzbmatrix', 0))
+	NZBMATRIX_USERNAME = check_setting_str(CFG, 'NZBMatrix', 'nzbmatrix_username', '')
+	NZBMATRIX_APIKEY = check_setting_str(CFG, 'NZBMatrix', 'nzbmatrix_apikey', '')
 
 	CheckSection(CFG, 'Newzbin')
         NEWZBIN = bool(check_setting_int(CFG, 'Newzbin', 'newzbin', 0))
-        NEWZBIN_USERNAME = check_setting_str(CFG, 'Newzbin', 'newzbin_username', '')
-        NEWZBIN_PASSWORD = check_setting_str(CFG, 'Newzbin', 'newzbin_password', '')
+	NEWZBIN_USERNAME = check_setting_str(CFG, 'Newzbin', 'newzbin_username', '')
+	NEWZBIN_PASSWORD = check_setting_str(CFG, 'Newzbin', 'newzbin_password', '')
 
-        WOMBLE = bool(check_setting_int(CFG, 'Womble', 'womble', 1))
+	CheckSection(CFG, 'Womble')
+	WOMBLE = bool(check_setting_int(CFG, 'Womble', 'womble', 1))
 
 	CheckSection(CFG, 'SABnzbd')
         SAB_USERNAME = check_setting_str(CFG, 'SABnzbd', 'sab_username', '')
@@ -530,22 +610,26 @@ def initialize(consoleLogging=True):
         TWITTER_PASSWORD = check_setting_str(CFG, 'Twitter', 'twitter_password', '')
         TWITTER_PREFIX = check_setting_str(CFG, 'Twitter', 'twitter_prefix', 'Sick Beard')
 
+	CheckSection(CFG, 'Notifo')
         USE_NOTIFO = bool(check_setting_int(CFG, 'Notifo', 'use_notifo', 0))
         NOTIFO_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Notifo', 'notifo_notify_onsnatch', 0))
         NOTIFO_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'Notifo', 'notifo_notify_ondownload', 0))
         NOTIFO_USERNAME = check_setting_str(CFG, 'Notifo', 'notifo_username', '')
         NOTIFO_APISECRET = check_setting_str(CFG, 'Notifo', 'notifo_apisecret', '')
 
+	CheckSection(CFG, 'Boxcar')
         USE_BOXCAR = bool(check_setting_int(CFG, 'Boxcar', 'use_boxcar', 0))
         BOXCAR_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Boxcar', 'boxcar_notify_onsnatch', 0))
         BOXCAR_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'Boxcar', 'boxcar_notify_ondownload', 0))
         BOXCAR_USERNAME = check_setting_str(CFG, 'Boxcar', 'boxcar_username', '')
 
+	CheckSection(CFG, 'Pushover')
         USE_PUSHOVER = bool(check_setting_int(CFG, 'Pushover', 'use_pushover', 0))
         PUSHOVER_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Pushover', 'pushover_notify_onsnatch', 0))
         PUSHOVER_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'Pushover', 'pushover_notify_ondownload', 0))
         PUSHOVER_USERKEY = check_setting_str(CFG, 'Pushover', 'pushover_userkey', '')
 
+	CheckSection(CFG, 'Libnotify')
         USE_LIBNOTIFY = bool(check_setting_int(CFG, 'Libnotify', 'use_libnotify', 0))
         LIBNOTIFY_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Libnotify', 'libnotify_notify_onsnatch', 0))
         LIBNOTIFY_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'Libnotify', 'libnotify_notify_ondownload', 0))
@@ -557,11 +641,12 @@ def initialize(consoleLogging=True):
         NMJ_MOUNT = check_setting_str(CFG, 'NMJ', 'nmj_mount', '')
 
 	CheckSection(CFG, 'Synology')
-        USE_SYNOINDEX = bool(check_setting_int(CFG, 'Synology', 'use_synoindex', 0))
+	USE_SYNOINDEX = bool(check_setting_int(CFG, 'Synology', 'use_synoindex', 0))
 
-        USE_TRAKT = bool(check_setting_int(CFG, 'Trakt', 'use_trakt', 0))
-        TRAKT_USERNAME = check_setting_str(CFG, 'Trakt', 'trakt_username', '')
-        TRAKT_PASSWORD = check_setting_str(CFG, 'Trakt', 'trakt_password', '')
+	CheckSection(CFG, 'Trakt')
+	USE_TRAKT = bool(check_setting_int(CFG, 'Trakt', 'use_trakt', 0))
+	TRAKT_USERNAME = check_setting_str(CFG, 'Trakt', 'trakt_username', '')
+	TRAKT_PASSWORD = check_setting_str(CFG, 'Trakt', 'trakt_password', '')
         TRAKT_API = check_setting_str(CFG, 'Trakt', 'trakt_api', '')
 
 	CheckSection(CFG, 'pyTivo')
@@ -577,82 +662,11 @@ def initialize(consoleLogging=True):
         USE_NMA = bool(check_setting_int(CFG, 'NMA', 'use_nma', 0))
         NMA_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'NMA', 'nma_notify_onsnatch', 0))
         NMA_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'NMA', 'nma_notify_ondownload', 0))
-        NMA_API = check_setting_str(CFG, 'NMA', 'nma_api', '')
-        NMA_PRIORITY = check_setting_str(CFG, 'NMA', 'nma_priority', "0")
+	NMA_API = check_setting_str(CFG, 'NMA', 'nma_api', '')
+	NMA_PRIORITY = check_setting_str(CFG, 'NMA', 'nma_priority', "0")
 
-        GIT_PATH = check_setting_str(CFG, 'General', 'git_path', '')
-        IGNORE_WORDS = check_setting_str(CFG, 'General', 'ignore_words', IGNORE_WORDS)
-        EXTRA_SCRIPTS = [x for x in check_setting_str(CFG, 'General', 'extra_scripts', '').split('|') if x]
-
-        USE_BANNER = bool(check_setting_int(CFG, 'General', 'use_banner', 0))
-        USE_LISTVIEW = bool(check_setting_int(CFG, 'General', 'use_listview', 0))
-        METADATA_TYPE = check_setting_str(CFG, 'General', 'metadata_type', '')
-
-        metadata_provider_dict = metadata.get_metadata_generator_dict()
-
-        # if this exists it's legacy, use the info to upgrade metadata to the new settings
-        if METADATA_TYPE:
-
-            old_metadata_class = None
-
-            if METADATA_TYPE == 'xbmc':
-                old_metadata_class = metadata.xbmc.metadata_class
-            elif METADATA_TYPE == 'mediabrowser':
-                old_metadata_class = metadata.mediabrowser.metadata_class
-            elif METADATA_TYPE == 'ps3':
-                old_metadata_class = metadata.ps3.metadata_class
-
-            if old_metadata_class:
-
-                METADATA_SHOW = bool(check_setting_int(CFG, 'General', 'metadata_show', 1))
-                METADATA_EPISODE = bool(check_setting_int(CFG, 'General', 'metadata_episode', 1))
-
-                ART_POSTER = bool(check_setting_int(CFG, 'General', 'art_poster', 1))
-                ART_FANART = bool(check_setting_int(CFG, 'General', 'art_fanart', 1))
-                ART_THUMBNAILS = bool(check_setting_int(CFG, 'General', 'art_thumbnails', 1))
-                ART_SEASON_THUMBNAILS = bool(check_setting_int(CFG, 'General', 'art_season_thumbnails', 1))
-
-                new_metadata_class = old_metadata_class(METADATA_SHOW,
-                                                        METADATA_EPISODE,
-                                                        ART_POSTER,
-                                                        ART_FANART,
-                                                        ART_THUMBNAILS,
-                                                        ART_SEASON_THUMBNAILS)
-
-                metadata_provider_dict[new_metadata_class.name] = new_metadata_class
-
-        # this is the normal codepath for metadata config
-        else:
-            METADATA_XBMC = check_setting_str(CFG, 'General', 'metadata_xbmc', '0|0|0|0|0|0')
-            METADATA_MEDIABROWSER = check_setting_str(CFG, 'General', 'metadata_mediabrowser', '0|0|0|0|0|0')
-            METADATA_PS3 = check_setting_str(CFG, 'General', 'metadata_ps3', '0|0|0|0|0|0')
-            METADATA_WDTV = check_setting_str(CFG, 'General', 'metadata_wdtv', '0|0|0|0|0|0')
-            METADATA_TIVO = check_setting_str(CFG, 'General', 'metadata_tivo', '0|0|0|0|0|0')
-            METADATA_SYNOLOGY = check_setting_str(CFG, 'General', 'metadata_synology', '0|0|0|0|0|0')
-
-            for cur_metadata_tuple in [(METADATA_XBMC, metadata.xbmc),
-                                       (METADATA_MEDIABROWSER, metadata.mediabrowser),
-                                       (METADATA_PS3, metadata.ps3),
-                                       (METADATA_WDTV, metadata.wdtv),
-                                       (METADATA_TIVO, metadata.tivo),
-                                       (METADATA_SYNOLOGY, metadata.synology),
-                                       ]:
-
-                (cur_metadata_config, cur_metadata_class) = cur_metadata_tuple
-                tmp_provider = cur_metadata_class.metadata_class()
-                tmp_provider.set_config(cur_metadata_config)
-                metadata_provider_dict[tmp_provider.name] = tmp_provider
-
-        COMING_EPS_LAYOUT = check_setting_str(CFG, 'GUI', 'coming_eps_layout', 'banner')
-        COMING_EPS_DISPLAY_PAUSED = bool(check_setting_int(CFG, 'GUI', 'coming_eps_display_paused', 0))
-        COMING_EPS_SORT = check_setting_str(CFG, 'GUI', 'coming_eps_sort', 'date')
-
-        newznabData = check_setting_str(CFG, 'Newznab', 'newznab_data', '')
-        newznabProviderList = providers.getNewznabProviderList(newznabData)
-        providerList = providers.makeProviderList()
-
-        # start up all the threads
-        logger.sb_log_instance.initLogging(consoleLogging=consoleLogging)
+	# start up all the threads
+	logger.sb_log_instance.initLogging(consoleLogging=consoleLogging)
 
         # initialize the main SB database
         db.upgradeDatabase(db.DBConnection(), mainDB.InitialSchema)
