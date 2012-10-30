@@ -34,58 +34,29 @@ try:
 except ImportError:
     import xml.etree.ElementTree as etree
 
-try:
-    import lib.simplejson as json
-except:
-    import json
-
 class XBMCNotifier:
 
-    apiversion = 0
-
     def notify_snatch(self, ep_name):
-        if sickbeard.XBMC_NOTIFY_ONSNATCH:
-	    if (self._jsonapiversion() <= 4):
-		logger.log(u"Detected XBMC version <= 11, using XBMC HTTP API", logger.DEBUG)
-		self._notifyXBMC(ep_name, common.notifyStrings[common.NOTIFY_SNATCH])
-	    else:
-		logger.log(u"Detected XBMC version >= 12, using XBMC JSON API", logger.DEBUG)
-		self._notifyXBMC_json(ep_name, common.notifyStrings[common.NOTIFY_SNATCH])
+	if sickbeard.XBMC_NOTIFY_ONSNATCH:
+	    self._notifyXBMC(ep_name, common.notifyStrings[common.NOTIFY_SNATCH])
 
     def notify_download(self, ep_name):
-        if sickbeard.XBMC_NOTIFY_ONDOWNLOAD:
-	    if (self._jsonapiversion() <= 4):
-		self._notifyXBMC(ep_name, common.notifyStrings[common.NOTIFY_DOWNLOAD])
-	    else:
-		self._notifyXBMC_json(ep_name, common.notifyStrings[common.NOTIFY_DOWNLOAD])
+	if sickbeard.XBMC_NOTIFY_ONDOWNLOAD:
+	    self._notifyXBMC(ep_name, common.notifyStrings[common.NOTIFY_DOWNLOAD])
 
     def test_notify(self, host, username, password):
-	if (self._jsonapiversion() <= 4):
-	    logger.log(u"Detected XBMC version <= 11, using XBMC HTTP API", logger.DEBUG)
-	    return self._notifyXBMC("Testing XBMC notifications from Sick Beard", "Test Notification", host, username, password, force=True)
-	else:
-	    logger.log(u"Detected XBMC version >= 12, using XBMC JSON API", logger.DEBUG)
-	    return self._notifyXBMC_json("Testing XBMC notifications from Sick Beard", "Test Notification", host, username, password, force=True)
+	return self._notifyXBMC("Testing XBMC notifications from Sick Beard", "Test Notification", host, username, password, force=True)
 
-    def update_library(self, host, showName=None):
-        if sickbeard.XBMC_UPDATE_LIBRARY:
-	    if (self._jsonapiversion() <= 4):
-		if not self._update_library(host, showName) and sickbeard.XBMC_UPDATE_FULL:
-                    # do a full update if requested
-		    return self._update_library(host)
-		else:
-		    return True
-
-	    else:
-		if not self._update_library_json(host, showName) and sickbeard.XBMC_UPDATE_FULL:
+    def update_library(self, show_name):
+	if sickbeard.XBMC_UPDATE_LIBRARY:
+	    for curHost in [x.strip() for x in sickbeard.XBMC_HOST.split(",")]:
+		# do a per-show update first, if possible
+		if not self._update_library(curHost, showName=show_name) and sickbeard.XBMC_UPDATE_FULL:
 		    # do a full update if requested
-		    logger.log("Single show update failed, running full update", logger.ERROR)
-		    return self._update_library_json(host)
-		else:
-		    return True
+		    self._update_library(curHost)
 
     def _username(self):
-        return sickbeard.XBMC_USERNAME
+	return sickbeard.XBMC_USERNAME
 
     def _password(self):
         return sickbeard.XBMC_PASSWORD
@@ -94,16 +65,10 @@ class XBMCNotifier:
         return sickbeard.USE_XBMC
 
     def _hostname(self):
-        return sickbeard.XBMC_HOST
-
-    def _jsonapiversion(self):
-	# buffer the api version, so we don't hammer the server with useless requests
-	if (self.apiversion == 0):
-	    self.apiversion = self._checkJSON_version()
-	return self.apiversion
+	return sickbeard.XBMC_HOST
 
     def _sendToXBMC(self, command, host, username=None, password=None):
-        '''
+	'''
         Handles communication with XBMC servers
     
         command - Dictionary of field/data pairs, encoded via urllib.urlencode and
@@ -146,12 +111,12 @@ class XBMCNotifier:
         return response
 
     def _notifyXBMC(self, input, title="Sick Beard", host=None, username=None, password=None, force=False):
-    
-        if not self._use_me() and not force:
-	    logger.log(u"Notification for XBMC not enabled, skipping this notification", logger.DEBUG)
-            return False
-    
-        if not host:
+
+	if not self._use_me() and not force:
+	    logger.log("Notification for XBMC not enabled, skipping this notification", logger.DEBUG)
+	    return False
+
+	if not host:
             host = self._hostname()
         if not username:
             username = self._username()
@@ -171,21 +136,21 @@ class XBMCNotifier:
                 result += ', '
             result += curHost + ':' + self._sendToXBMC(command, curHost, username, password)
 
-        return result
+	return result
 
     def _update_library(self, host, showName=None):
 
-        if not self._use_me():
-	    logger.log(u"Notifications for XBMC not enabled, skipping library update", logger.DEBUG)
-            return False
-    
-        logger.log(u"Updating library in XBMC", logger.DEBUG)
-    
-        if not host:
-	    logger.log(u'No host specified, no updates done', logger.DEBUG)
-            return False
-    
-        # if we're doing per-show
+	if not self._use_me():
+	    logger.log("Notifications for XBMC not enabled, skipping library update", logger.DEBUG)
+	    return False
+
+	logger.log(u"Updating library in XBMC", logger.DEBUG)
+
+	if not host:
+	    logger.log('No host specified, no updates done', logger.DEBUG)
+	    return False
+
+	# if we're doing per-show
         if showName:
             pathSql = 'select path.strPath from path, tvshow, tvshowlinkpath where ' \
                 'tvshow.c00 = "%s" and tvshowlinkpath.idShow = tvshow.idShow ' \
@@ -245,163 +210,8 @@ class XBMCNotifier:
             if not request:
                 logger.log(u"Full update failed on " + host, logger.ERROR)
                 return False
-    
-        return True
-
-    def _checkJSON_version(self):
-	'''
-	returns XBMC JSONRPC Api version
-	4 = Xbmc Eden(11), 5 = Xbmc Frodo(12)
-	'''
-	host = self._hostname()
-	username = self._username()
-	password = self._password()
-
-	checkCommand = '{"id":1,"jsonrpc":"2.0","method":"JSONRPC.Version"}'
-	result = self._sendToXBMC_json(checkCommand, host, username, password)
-	if result:
-	    return result["result"]["version"]
-	else:
-	    return False
-
-    def _sendToXBMC_json(self, command, host, username=None, password=None):
-	'''
-	Handles communication with XBMC servers via JSONRPC
-
-	command - JSON request passed to http://host/jsonrpc
-	returns: dict or False on error
-
-	host - host/ip + port (foo:8080)
-	'''
-
-	if not username:
-	    username = self._username()
-	if not password:
-	    password = self._password()
-
-	command = command.encode('utf-8')
-	logger.log(u"Command is " + command, logger.DEBUG)
-	url = 'http://%s/jsonrpc' % (host)
-
-	try:
-	    req = urllib2.Request(url, command)
-	    req.add_header("Content-type", "application/json")
-	    # If we have a password, use authentication
-	    if password:
-		logger.log(u"Adding Password to XBMC url", logger.DEBUG)
-		base64string = base64.encodestring('%s:%s' % (username, password))[:-1]
-		authheader =  "Basic %s" % base64string
-		req.add_header("Authorization", authheader)
-
-	    logger.log(u"Contacting XBMC via url: " + url, logger.DEBUG)
-	    response = urllib2.urlopen(req)
-
-	except IOError, e:
-	    logger.log(u"Warning: Couldn't contact XBMC JSON api at " + fixStupidEncodings(url) + ": " + ex(e), logger.ERROR)
-	    return False
-
-	# Parse the json result
-	try:
-	    result = json.load(response)
-	    response.close()
-	    logger.log(u"response: " + str(result), logger.DEBUG)
-	    return result
-
-	except ValueError, e:
-	    logger.log(u"Unable to decode JSON: "+response, logger.ERROR)
-	    return False
-
-
-    def _notifyXBMC_json(self, msg, title="Sick Beard", host=None, username=None, password=None, force=False):
-
-	if not self._use_me() and not force:
-	    logger.log(u"Notification for XBMC not enabled, skipping this notification", logger.DEBUG)
-	    return False
-
-	if not host:
-	    host = self._hostname()
-	if not username:
-	    username = self._username()
-	if not password:
-	    password = self._password()
-
-	logger.log(u"Sending notification for " + msg, logger.DEBUG)
-
-	result = ''
-	for curHost in [x.strip() for x in host.split(",")]:
-	    command = '{"id":1,"jsonrpc":"2.0","method":"GUI.ShowNotification","params":{"title":"Sick Beard","message":"%s"}}' % msg
-	    logger.log(u"Sending notification to XBMC via host: "+ curHost +" username: "+ username + " password: " + password, logger.DEBUG)
-	    notifyResult = self._sendToXBMC_json(command, curHost, username, password)
-	    if (notifyResult != False):
-		result += ', '+ curHost + ':' + notifyResult["result"].decode(sickbeard.SYS_ENCODING)
-
-	return result
-
-    def _update_library_json(self, host, showName=None):
-
-	username = self._username()
-	password = self._password()
-
-	if not self._use_me():
-	    logger.log("Notifications for XBMC not enabled, skipping library update", logger.DEBUG)
-	    return False
-
-	logger.log(u"Updating library in XBMC", logger.DEBUG)
-
-	if not host:
-	    logger.log(u'No host specified, no updates done', logger.DEBUG)
-	    return False
-
-	# if we're doing per-show
-	if showName:
-	    tvshowid = -1
-
-	    # get tvshowid by showName
-	    showsCommand = '{"id":1,"jsonrpc":"2.0","method":"VideoLibrary.GetTVShows"}'
-	    showsResponse = self._sendToXBMC_json(showsCommand, host)
-	    if (showsResponse == False):
-		return False
-	    shows = showsResponse["result"]["tvshows"]
-
-	    for show in shows:
-		if (show["label"] == showName):
-		    tvshowid = show["tvshowid"]
-	    if (tvshowid == -1):
-		# we didn't find the show, will trigger a full update if enabled
-		return False
-
-	    # this can be big, so free some memory
-	    del shows
-
-	    # JSON to get the TV-Show path
-	    pathCommand = '{"id":1,"jsonrpc":"2.0","method":"VideoLibrary.GetTVShowDetails","params":{"tvshowid":%d, "properties": ["file"]}}' % (tvshowid)
-	    pathResponse = self._sendToXBMC_json(pathCommand, host)
-
-	    path = pathResponse["result"]["tvshowdetails"]["file"]
-	    logger.log(u"Received Show: " + show["label"] + " with ID: " + str(tvshowid) + " Path: " + path, logger.DEBUG)
-
-	    if (len(path) < 1):
-		logger.log(u"No valid path found for " + showName + " with ID: " + str(tvshowid) + " on " + host, logger.ERROR)
-		return False
-
-	    logger.log(u"XBMC Updating " + showName + " on " + host + " at " + path, logger.DEBUG)
-	    updateCommand = '{"id":1,"jsonrpc":"2.0","method":"VideoLibrary.Scan","params":{"directory":"%s"}}' % (path)
-	    request = self._sendToXBMC_json(updateCommand, host)
-	    if not request:
-		    logger.log(u"Update of show directory failed on " + showName + " on " + host + " at " + path, logger.ERROR)
-		    return False
-
-	else:
-	    logger.log(u"Do a full update as requested", logger.DEBUG)
-	    logger.log(u"XBMC Updating " + host, logger.DEBUG)
-	    updateCommand = '{"id":1,"jsonrpc":"2.0","method":"VideoLibrary.Scan"}'
-	    request = self._sendToXBMC_json(updateCommand, host, username, password)
-	    if not request:
-		logger.log(u"Full update failed on " + host, logger.ERROR)
-		return False
 
 	return True
-
 
 # Wake function
 def wakeOnLan(ethernet_address):
