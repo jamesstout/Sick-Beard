@@ -698,3 +698,44 @@ def backupVersionedFile(oldFile, version):
         if numTries >= 10:
             logger.log(u"Unable to back up "+oldFile+", please do it manually.")
             sys.exit(1)
+
+def roman_to_int(n):
+
+    try:
+        n = unicode(n).upper()
+    except Exception, e:
+        logger.log(u"Failed to convert "+repr(n)+" to unicode().upper(): "+ex(e), logger.ERROR)
+        # don't raise an error, just return zero
+        return 0        
+
+    # Regular expression used to validate and parse Roman numbers
+    # means XXXX will return zero...
+    roman_re = re.compile("""^
+        M{0,9}              # thousands - 0 to 9 M's
+        (CM|CD|D?C{0,3})    # hundreds - 900 (CM), 400 (CD), 0-300 (0 to 3 C's),
+                            #            or 500-800 (D, followed by 0 to 3 C's)
+        (XC|XL|L?X{0,3})    # tens - 90 (XC), 40 (XL), 0-30 (0 to 3 X's),
+                            #        or 50-80 (L, followed by 0 to 3 X's)
+        (IX|IV|V?I{0,3})    # ones - 9 (IX), 4 (IV), 0-3 (0 to 3 I's),
+                            #        or 5-8 (V, followed by 0 to 3 I's)
+       $""", re.VERBOSE)
+
+    match = roman_re.match(n)
+
+    if not match:
+        logger.log(u"Not a valid Roman numeral: "+n, logger.ERROR)
+        # don't raise an error, just return zero
+        return 0
+
+    numeral_map = zip(
+    (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1),
+    ('M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I'))
+
+    i = result = 0
+    for integer, numeral in numeral_map:
+        while n[i:i + len(numeral)] == numeral:
+            result += integer
+            i += len(numeral)
+    return result
+
+    
