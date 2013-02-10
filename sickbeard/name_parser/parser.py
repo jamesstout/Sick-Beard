@@ -25,6 +25,8 @@ import regexes
 import sickbeard
 
 from sickbeard import logger
+from sickbeard.helpers import roman_to_int
+from sickbeard.exceptions import ex
 
 class NameParser(object):
     def __init__(self, file_name=True):
@@ -161,39 +163,45 @@ class NameParser(object):
     def _convert_number(self, number):
         if type(number) == int:
             return number
+        
+        # try to convert to an int before trying the 
+        # roman_to_int() call
+        try:
+            conv = int(number)
+            return conv
+        except:
+            # Passing on ValueError Exception, it will get raised later if needed
+            pass
 
-        # good lord I'm lazy
-        if number.lower() == 'i': return 1
-        if number.lower() == 'ii': return 2
-        if number.lower() == 'iii': return 3
-        if number.lower() == 'iv': return 4
-        if number.lower() == 'v': return 5
-        if number.lower() == 'vi': return 6
-        if number.lower() == 'vii': return 7
-        if number.lower() == 'viii': return 8
-        if number.lower() == 'ix': return 9
-        if number.lower() == 'x': return 10
-        if number.lower() == 'xi': return 11
-        if number.lower() == 'xii': return 12
-        if number.lower() == 'xiii': return 13
-        if number.lower() == 'xiv': return 14
-        if number.lower() == 'xv': return 15
-        if number.lower() == 'xvi': return 16
-        if number.lower() == 'xvii': return 17
-        if number.lower() == 'xviii': return 18
-        if number.lower() == 'ixx': return 19
-        if number.lower() == 'xx': return 20
-        if number.lower() == 'xxi': return 21
-        if number.lower() == 'xxii': return 22
-        if number.lower() == 'xxiii': return 23
-        if number.lower() == 'xiv': return 24
-        if number.lower() == 'xv': return 25
-        if number.lower() == 'xvi': return 26
-        if number.lower() == 'xvii': return 27
-        if number.lower() == 'xviii': return 28
-        if number.lower() == 'xxix': return 29
+        # try roman_to_int
+        try:
+            conv = roman_to_int(number)
+            if type(conv) == int:
+                return conv
+        except Exception, e:
+            logger.log(u"Could not get roman_to_int() for: " + number + "ex: " + ex(e), logger.ERROR)
+            # pass on exception, will get raised later if needed
+            pass 
 
-        return int(number)
+        # this will raise the ValueError Ex if it cannot 
+        # convert to an int  
+        # do we want this? should we return zero?
+        # if we catch the exception and return zero instead
+        # then a feed would continue to be parsed
+        # this means that a user with one provider with a dodgy item in the feed
+        # would not get the 
+        # "No NZB/Torrent providers found or enabled in the sickbeard config. Please check your settings" error
+        
+        # so either this, which would raise a ValueError and stop the feed parsing
+        # return int(number)
+
+        # or this, which would let it continue, with an ep_num of zero
+        try:
+            conv = int(number)
+            return conv
+        except:
+            return 0
+
 
     def parse(self, name):
         
